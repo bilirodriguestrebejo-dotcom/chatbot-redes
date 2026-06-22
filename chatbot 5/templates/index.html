@@ -1,0 +1,235 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistente Virtual de Redes</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="support-panel" aria-label="Asistente de soporte">
+      <header class="header">
+        <div class="brand-mark">TI</div>
+        <div>
+          <h1>Asistente Virtual de Redes</h1>
+          <p>Asistencia para configuración de routers, redes inalámbricas, DNS, DHCP, IP, seguridad y conectividad doméstica.</p>
+        </div>
+        <div class="status-pill">
+          <span></span>
+          En línea
+        </div>
+      </header>
+
+      <form class="registration-view" id="registrationForm">
+        <div class="registration-intro">
+          <span>Paso 1</span>
+          <h2>Registra tus datos</h2>
+          <p>Completa esta información para abrir tu consulta de soporte.</p>
+        </div>
+
+        <section class="user-data-panel" aria-label="Datos del usuario">
+          <div class="field">
+            <label for="fullName">Nombre completo</label>
+            <input id="fullName" type="text" placeholder="Ej. Ana Lopez" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="userCode">Código o ID</label>
+            <input id="userCode" type="text" placeholder="Ej. 2024001" autocomplete="off" required />
+          </div>
+          <div class="field">
+            <label for="email">Correo institucional</label>
+            <input id="email" type="email" placeholder="Ej. ana.lopez@institucion.edu" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="department">Área o departamento</label>
+            <input id="department" type="text" placeholder="Ej. Soporte TI" autocomplete="organization" required />
+          </div>
+          <div class="field">
+            <label for="queryDate">Fecha y hora</label>
+            <input id="queryDate" type="text" readonly />
+          </div>
+        </section>
+
+        <div class="registration-actions">
+          <button type="submit">Continuar a consulta</button>
+        </div>
+      </form>
+
+      <section class="chat-view is-hidden" id="chatView" aria-label="Consulta de soporte">
+        <div class="case-summary">
+          <div>
+            <span>Consulta activa</span>
+            <strong id="summaryName">Usuario registrado</strong>
+          </div>
+          <button class="secondary-button" type="button" id="editDataButton">Editar datos</button>
+        </div>
+
+        <section class="chat" id="chat" aria-live="polite">
+          <div class="message bot welcome">
+             Registro completado. Soy tu asistente para configuración y gestión básica de routers caseros. Selecciona una opción rápida o describe tu problema.
+          </div>
+        </section>
+
+        <div class="quick-options" id="quickOptions" aria-label="Opciones rápidas"></div>
+
+        <form class="input-area" id="chatForm">
+          <input id="userInput" type="text" placeholder="Escribe tu consulta..." autocomplete="off" />
+          <button type="submit" aria-label="Enviar mensaje">Enviar</button>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    function formatDateTime() {
+      const now = new Date();
+      return now.toLocaleString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    const queryDate = document.getElementById("queryDate");
+    const registrationForm = document.getElementById("registrationForm");
+    const chatView = document.getElementById("chatView");
+    const chatForm = document.getElementById("chatForm");
+    const userInput = document.getElementById("userInput");
+    const summaryName = document.getElementById("summaryName");
+    const editDataButton = document.getElementById("editDataButton");
+    const quickOptions = document.getElementById("quickOptions");
+    let registeredUserData = null;
+    let conversationHistory = [];
+
+    queryDate.value = formatDateTime();
+
+    registrationForm.addEventListener("submit", showChat);
+    chatForm.addEventListener("submit", sendMessage);
+    editDataButton.addEventListener("click", showRegistration);
+
+    function getUserData() {
+      return {
+        full_name: document.getElementById("fullName").value.trim(),
+        user_code: document.getElementById("userCode").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        department: document.getElementById("department").value.trim(),
+        query_datetime: queryDate.value
+      };
+    }
+
+    function showChat(event) {
+      event.preventDefault();
+
+      if (!registrationForm.checkValidity()) {
+        registrationForm.reportValidity();
+        return;
+      }
+
+      registeredUserData = getUserData();
+      summaryName.textContent = `${registeredUserData.full_name} - ${registeredUserData.department}`;
+      registrationForm.classList.add("is-hidden");
+      chatView.classList.remove("is-hidden");
+      renderOptions(["Sin Internet", "Internet lento","Red inalámbrica","IP", "DNS","DHCP","Gateway","Cambiar clave","Cambiar nombre","Dispositivos conectados","Seguridad","Reiniciar router","Configurar router","Luces del router","Nueva consulta"]);
+      userInput.focus();
+    }
+
+    function showRegistration() {
+      chatView.classList.add("is-hidden");
+      registrationForm.classList.remove("is-hidden");
+      document.getElementById("fullName").focus();
+    }
+
+    async function sendMessage(event) {
+      event.preventDefault();
+
+      const text = userInput.value.trim();
+      await submitMessage(text);
+    }
+
+    async function submitMessage(text) {
+      if (!text) return;
+
+      if (text === "Nueva consulta") {
+        resetConversation();
+        return;
+      }
+
+      const requestHistory = conversationHistory.slice(-10);
+
+      addMessage(text, "user");
+      conversationHistory.push({ sender: "user", text });
+      userInput.value = "";
+      userInput.focus();
+      renderOptions([]);
+
+      const loadingMessage = addMessage("Consultando...", "bot");
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: text,
+            user_data: registeredUserData,
+            history: requestHistory
+          })
+        });
+
+        const data = await response.json();
+        const botResponse = data.response || "No pude generar una respuesta.";
+        loadingMessage.textContent = botResponse;
+        conversationHistory.push({ sender: "bot", text: botResponse });
+        renderOptions(data.options || []);
+      } catch (error) {
+        const errorMessage = "No pude conectar con el servidor. Intenta otra vez.";
+        loadingMessage.textContent = errorMessage;
+        conversationHistory.push({ sender: "bot", text: errorMessage });
+        renderOptions(["Intentar de nuevo"]);
+      }
+    }
+
+    function addMessage(text, sender) {
+      const chat = document.getElementById("chat");
+      const msg = document.createElement("div");
+
+      msg.className = `message ${sender}`;
+      msg.textContent = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+
+      return msg;
+    }
+
+    function renderOptions(options) {
+      quickOptions.replaceChildren();
+
+      options.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "option-button";
+        button.textContent = option;
+        button.addEventListener("click", () => submitMessage(option));
+        quickOptions.appendChild(button);
+      });
+    }
+
+    function resetConversation() {
+      conversationHistory = [];
+      document.getElementById("chat").replaceChildren();
+      addMessage("Nueva consulta iniciada. Elige el área del problema para comenzar.", "bot");
+      renderOptions(["Sin Internet", "Internet lento","Red inalámbrica","IP", "DNS","DHCP","Gateway","Cambiar clave","Cambiar nombre","Dispositivos conectados","Seguridad","Reiniciar router","Configurar router","Luces del router","Nueva consulta"]);
+      userInput.value = "";
+      userInput.focus();
+    }
+  </script>
+</body>
+</html>
+
+
+
+
