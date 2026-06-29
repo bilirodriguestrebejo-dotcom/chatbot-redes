@@ -1,0 +1,29 @@
+# ── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ── Base de datos SQLite ─────────────────────────────
+# Se regenera automáticamente en cada arranque (datos de prueba + cliente demo).
+*.db
+chatbot_isp.db
+
+# ── Variables de entorno ─────────────────────────────
+.env
+chatbot 5/.env
+
+# ── Logs ─────────────────────────────────────────────
+*.log
+flask.err.log
+flask.out.log
+
+# ── IDE / Sistema operativo ──────────────────────────
+.vscode/
+.idea/
+agents/
+.DS_Store
+Thumbs.db
+
+# ── Archivos duplicados / basura ─────────────────────
+chatbot 5/backend/c_Users_*.py
